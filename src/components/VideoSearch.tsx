@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSession } from "@supabase/auth-helpers-react";
 import { useQuery } from "@tanstack/react-query";
-// import { useSupabaseClient } from "@supabase/auth-helpers-react";
-
-// const supabase = useSupabaseClient();
+import { useSupabaseClient } from "@supabase/auth-helpers-react";
+import { v4 as uuidv4 } from "uuid";
 
 interface SearchResult {
   id: string;
@@ -25,11 +24,12 @@ interface Slot {
 
 export default function VideoSearch() {
   const session = useSession();
+  const supabase = useSupabaseClient();
 
   // ---------------------------
   // 1. SESSION TRACKING STATE
   // ---------------------------
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [pageSessionId, setPageSessionId] = useState<string | null>(null);
 
   // For auto-advance tracking
   const [autoAdvanceStartTime, setAutoAdvanceStartTime] = useState<number>(0);
@@ -39,35 +39,78 @@ export default function VideoSearch() {
     string | null
   >(null);
 
-  // TEXT prompt
-  const [prompt, setPrompt] = useState("");
 
+  const [prompt, setPrompt] = useState("");
   // The 3-slot layout: left, center, right
   // Middle slot is active by default
   const [slots, setSlots] = useState<Slot[]>([
-    { isActive: false, videoIndex: 0 }, // Left slot
+    { isActive: false, videoIndex: 0 }, // Left slot !!! TODO: RANDOM INDICES
     { isActive: true, videoIndex: 0 }, // Center slot
     { isActive: false, videoIndex: 0 }, // Right slot
   ]);
-
   const [bookmarkedVideos, setBookmarkedVideos] = useState<Set<string>>(
     new Set()
   );
-
   // Automatic skip toggles
   const [autoAdvance, setAutoAdvance] = useState(false);
   const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState(5);
-
   const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // For Fullscreen
+  // For MultiPlayer Fullscreen
   const multiPlayerRef = useRef<HTMLDivElement>(null);
+
+  // Initialize page session on component mount
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const newSessionId = uuidv4();
+    setPageSessionId(newSessionId);
+
+    const startSession = async () => {
+      try {
+        await supabase.from("page_sessions").insert([
+          {
+            id: newSessionId,
+            user_id: session.user.id,
+          },
+        ]);
+      } catch (error) {
+        console.error("Failed to start session:", error);
+      }
+    };
+
+    const endSession = async () => {
+      if (!newSessionId) return;
+      try {
+        await supabase
+          .from("page_sessions")
+          .update({ ended_at: new Date().toISOString() })
+          .eq("id", newSessionId);
+      } catch (error) {
+        console.error("Failed to end session:", error);
+      }
+    };
+
+    startSession();
+
+    // End session handlers
+    window.addEventListener("beforeunload", endSession);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) endSession();
+    });
+
+    return () => {
+      window.removeEventListener("beforeunload", endSession);
+      document.removeEventListener("visibilitychange", endSession);
+      endSession();
+    };
+  }, [session?.user?.id, supabase]);
 
   // React Query for searching
   const { data, error, isLoading, refetch } = useQuery<SearchResponse>({
     queryKey: ["videoSearch", prompt],
     queryFn: async () => {
-      if (!prompt || !session?.access_token) return null;
+      if (!prompt || !session?.access_token || !session.user) return null;
+
       const response = await fetch("/api/baseten", {
         method: "POST",
         headers: {
@@ -77,13 +120,12 @@ export default function VideoSearch() {
         body: JSON.stringify({
           prompt,
           similarity_threshold: 0.1,
-          match_count: 20
+          match_count: 20,
+          page_session_id: pageSessionId,
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Search failed");
-      }
+      if (!response.ok) throw new Error("Search failed");
       return response.json();
     },
     enabled: false, // only run when form is submitted
