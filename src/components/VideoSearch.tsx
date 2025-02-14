@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSupabaseClient } from "@supabase/auth-helpers-react";
 import { v4 as uuidv4 } from "uuid";
 import { VideoSlot } from "./VideoSlot";
+import { VideoControls } from "./VideoControls";
 
 interface SearchResult {
   id: string;
@@ -422,81 +423,65 @@ export default function VideoSearch() {
   // ---------------------------
   return (
     <div className="w-full max-w-4xl mx-auto p-4 space-y-6">
-      {/* FORM */}
-      <form onSubmit={handleSearch} className="flex items-center gap-4 mb-4">
-        {/* Search input */}
-        <input
-          type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Enter search prompt..."
-          className="flex-1 px-4 py-2 rounded border border-gray-300 text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      {/* Search section */}
+      <section>
+        <form onSubmit={handleSearch} className="flex items-center gap-4 mb-4">
+          {/* Search input */}
+          <input
+            type="text"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="Enter search prompt..."
+            className="flex-1 px-4 py-2 rounded border border-gray-300 text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
 
-        {/* Submit button */}
-        <button
-          type="submit"
-          disabled={isLoading || !prompt}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-        >
-          {isLoading ? "Searching..." : "Search"}
-        </button>
-      </form>
+          {/* Submit button */}
+          <button
+            type="submit"
+            disabled={isLoading || !prompt}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {isLoading ? "Searching..." : "Search"}
+          </button>
+        </form>
 
-      {/* Auto-advance controls */}
-      <div className="flex items-center gap-2 mb-4">
-        <label className="font-semibold">Auto-Advance:</label>
-        <input
-          type="checkbox"
-          checked={autoAdvance}
-          onChange={(e) => toggleAutoAdvanceCheckbox(e.target.checked)}
-        />
-        {autoAdvance && (
-          <>
-            <label>Seconds per video:</label>
-            <input
-              type="number"
-              value={autoAdvanceSeconds}
-              onChange={(e) => handleIntervalChange(Number(e.target.value))}
-              className="w-20 border border-gray-300 rounded px-2 py-1"
-              min="1"
-            />
-          </>
-        )}
-      </div>
-
-      {/* ERROR MESSAGE */}
-      {error && (
-        <div className="p-4 bg-red-100 text-red-700 rounded">
-          {error.message}
+        {/* Auto-advance controls */}
+        <div className="flex items-center gap-2 mb-4">
+          <label className="font-semibold">Auto-Advance:</label>
+          <input
+            type="checkbox"
+            checked={autoAdvance}
+            onChange={(e) => toggleAutoAdvanceCheckbox(e.target.checked)}
+          />
+          {autoAdvance && (
+            <>
+              <label>Seconds per video:</label>
+              <input
+                type="number"
+                value={autoAdvanceSeconds}
+                onChange={(e) => handleIntervalChange(Number(e.target.value))}
+                className="w-20 border border-gray-300 rounded px-2 py-1"
+                min="1"
+              />
+            </>
+          )}
         </div>
-      )}
 
-      {/* ADD/REMOVE SLOT BUTTONS */}
-      <div className="flex gap-2">
-        {!slots[0].isActive && (
-          <button
-            onClick={handleAddLeft}
-            className="px-3 py-1 bg-green-500 text-white rounded"
-          >
-            Add Left Player
-          </button>
+        {/* ERROR MESSAGE */}
+        {error && (
+          <div className="p-4 bg-red-100 text-red-700 rounded">
+            {error.message}
+          </div>
         )}
-        {!slots[2].isActive && (
-          <button
-            onClick={handleAddRight}
-            className="px-3 py-1 bg-green-500 text-white rounded"
-          >
-            Add Right Player
-          </button>
-        )}
-        <button
-          onClick={handleFullScreen}
-          className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
-        >
-          Full Screen
-        </button>
-      </div>
+      </section>
+
+      {/* Video controls and player section */}
+      <VideoControls
+        slots={slots}
+        handleAddLeft={handleAddLeft}
+        handleAddRight={handleAddRight}
+        handleFullScreen={handleFullScreen}
+      />
 
       {/* 3-SLOT LAYOUT */}
       <div className="flex gap-3" ref={multiPlayerRef}>
