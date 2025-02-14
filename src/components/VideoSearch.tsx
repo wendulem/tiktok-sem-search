@@ -3,6 +3,7 @@ import { useSession } from "@supabase/auth-helpers-react";
 import { useQuery } from "@tanstack/react-query";
 import { useSupabaseClient } from "@supabase/auth-helpers-react";
 import { v4 as uuidv4 } from "uuid";
+import { VideoSlot } from "./VideoSlot";
 
 interface SearchResult {
   id: string;
@@ -189,7 +190,7 @@ export default function VideoSearch() {
 
   function handleAutoAdvanceNext(slotIndex: number) {
     if (!data?.matches) return;
-    
+
     setSlots((prevSlots) => {
       return prevSlots.map((slot, index) => {
         if (index === slotIndex) {
@@ -208,7 +209,7 @@ export default function VideoSearch() {
     if (!data?.matches) return;
 
     const currentVideoId = data.matches[slots[slotIndex].videoIndex].id;
-    
+
     // Log to video_interactions
     if (pageSessionId) {
       await supabase.from("video_interactions").insert([
@@ -274,7 +275,9 @@ export default function VideoSearch() {
   // ---------------------------
   // 7. AUTO-ADVANCE INTERVAL (Debounced)
   // ---------------------------
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(
+    null
+  );
 
   function handleIntervalChange(value: number) {
     setAutoAdvanceSeconds(value);
@@ -324,10 +327,16 @@ export default function VideoSearch() {
         }
         if (pageSessionId) {
           // Insert a row in compilation_mode_sessions
-          const { data, error } = await supabase.from("compilation_mode_sessions").insert([
-            { session_id: pageSessionId, entered_at: new Date().toISOString() }
-          ]).select(); // select() to return the inserted row
-  
+          const { data, error } = await supabase
+            .from("compilation_mode_sessions")
+            .insert([
+              {
+                session_id: pageSessionId,
+                entered_at: new Date().toISOString(),
+              },
+            ])
+            .select(); // select() to return the inserted row
+
           // Save the ID for exiting
           if (data && data.length > 0) {
             setCompilationModeSessionId(data[0].id);
@@ -345,10 +354,10 @@ export default function VideoSearch() {
             .eq("id", compilationModeSessionId);
           setCompilationModeSessionId(null);
         }
-      }  
+      }
       setIsFullscreen(!isFullscreen);
     }
-  }
+  };
 
   useEffect(() => {
     function handleFullscreenChange() {
@@ -407,7 +416,6 @@ export default function VideoSearch() {
       return newSlots;
     });
   }
-
 
   // ---------------------------
   // 11. RENDER
@@ -493,103 +501,22 @@ export default function VideoSearch() {
       {/* 3-SLOT LAYOUT */}
       <div className="flex gap-3" ref={multiPlayerRef}>
         {slots.map((slot, index) => {
-          if (!slot.isActive) return null; // skip inactive slots
-
           const video = data?.matches?.[slot.videoIndex];
-          if (!video) {
-            return (
-              <div key={index} className="flex-1">
-                <div className="bg-gray-100 h-64 flex items-center justify-center">
-                  <p className="text-gray-500">Please search for videos</p>
-                </div>
-              </div>
-            );
-          }
 
           return (
-            <div key={index} className="flex-1 space-y-2">
-              {/* Video & Bookmark Wrapper */}
-              <div
-                className={`relative group ${
-                  isFullscreen ? "h-[100vh]" : "h-[50vh]"
-                } w-full flex justify-center items-center`}
-              >
-                {/* Video */}
-                <video
-                  src={video.presigned_url}
-                  className="w-full h-full object-contain"
-                  controls
-                  autoPlay
-                  loop
-                  playsInline
-                  muted
-                />
-
-                {/* Bookmark Icon */}
-                <div
-                  className="absolute top-2 right-2 bg-white rounded-full p-1 cursor-pointer shadow-md transition-opacity opacity-0 group-hover:opacity-100"
-                  onClick={() => toggleBookmark(video.id)}
-                >
-                  {bookmarkedVideos.has(video.id) ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-6 w-6 text-blue-600"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M5 3a1 1 0 011-1h12a1 1 0 011 1v17.79c0 .45-.54.67-.85.35L12 14.5l-6.15 6.64c-.31.31-.85.1-.85-.35V3z" />
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-6 w-6 text-gray-600"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M5 3v17.79c0 .45.54.67.85.35L12 14.5l6.15 6.64c.31.31.85.1.85-.35V3a1 1 0 00-1-1H6a1 1 0 00-1 1z"
-                      />
-                    </svg>
-                  )}
-                </div>
-              </div>
-
-              {/* NAVIGATION & REMOVE BUTTON */}
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => handlePrevious(index)}
-                  className="px-2 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
-                >
-                  Prev
-                </button>
-                <div className="text-xs text-gray-600">
-                  Slot {index === 0 ? "Left" : index === 1 ? "Center" : "Right"}
-                  <br />
-                  Video {slot.videoIndex + 1} of {data?.matches.length}
-                  <br />
-                  Similarity: {(video.similarity * 100).toFixed(1)}%
-                </div>
-                <button
-                  onClick={() => handleNext(index)}
-                  className="px-2 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
-                >
-                  Next
-                </button>
-              </div>
-              {/* Remove button, disabled for the center slot */}
-              {index !== 1 && ( // Can't remove center
-                <button
-                  onClick={() => handleRemoveSlot(index)}
-                  className="w-full px-2 py-1 bg-red-500 text-white rounded"
-                >
-                  Remove {index === 0 ? "Left" : "Right"} Slot
-                </button>
-              )}
-            </div>
+            <VideoSlot
+              isActive={slot.isActive}
+              video={data?.matches?.[slot.videoIndex]}
+              videoIndex={slot.videoIndex}
+              totalVideos={data?.matches?.length ?? 0}
+              slotIndex={index}
+              isFullscreen={isFullscreen}
+              isBookmarked={bookmarkedVideos.has(video?.id)}
+              onNext={() => handleNext(index)}
+              onPrevious={() => handlePrevious(index)}
+              onRemove={() => handleRemoveSlot(index)}
+              onBookmark={toggleBookmark}
+            />
           );
         })}
       </div>
