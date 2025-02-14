@@ -5,6 +5,7 @@ import { useSupabaseClient } from "@supabase/auth-helpers-react";
 import { v4 as uuidv4 } from "uuid";
 import { VideoSlot } from "./VideoSlot";
 import { VideoControls } from "./VideoControls";
+import { useSessionTracking } from "../hooks/useSessionTracking";
 
 interface SearchResult {
   id: string;
@@ -31,7 +32,8 @@ export default function VideoSearch() {
   // ---------------------------
   // 1. SESSION TRACKING STATE
   // ---------------------------
-  const [pageSessionId, setPageSessionId] = useState<string | null>(null);
+  // const [pageSessionId, setPageSessionId] = useState<string | null>(null);
+  const { pageSessionId } = useSessionTracking(supabase, session?.user?.id);
 
   // For auto-advance tracking
   const [autoAdvanceStartTime, setAutoAdvanceStartTime] = useState<number>(0);
@@ -66,51 +68,51 @@ export default function VideoSearch() {
   // 3. START/END SESSION
   // ---------------------------
   // Initialize page session on component mount
-  useEffect(() => {
-    if (!session?.user?.id) return;
+  // useEffect(() => {
+  //   if (!session?.user?.id) return;
 
-    const newSessionId = uuidv4();
-    setPageSessionId(newSessionId);
+  //   const newSessionId = uuidv4();
+  //   setPageSessionId(newSessionId);
 
-    const startSession = async () => {
-      try {
-        await supabase.from("page_sessions").insert([
-          {
-            id: newSessionId,
-            user_id: session.user.id,
-          },
-        ]);
-      } catch (error) {
-        console.error("Failed to start session:", error);
-      }
-    };
+  //   const startSession = async () => {
+  //     try {
+  //       await supabase.from("page_sessions").insert([
+  //         {
+  //           id: newSessionId,
+  //           user_id: session.user.id,
+  //         },
+  //       ]);
+  //     } catch (error) {
+  //       console.error("Failed to start session:", error);
+  //     }
+  //   };
 
-    const endSession = async () => {
-      if (!newSessionId) return;
-      try {
-        await supabase
-          .from("page_sessions")
-          .update({ ended_at: new Date().toISOString() })
-          .eq("id", newSessionId);
-      } catch (error) {
-        console.error("Failed to end session:", error);
-      }
-    };
+  //   const endSession = async () => {
+  //     if (!newSessionId) return;
+  //     try {
+  //       await supabase
+  //         .from("page_sessions")
+  //         .update({ ended_at: new Date().toISOString() })
+  //         .eq("id", newSessionId);
+  //     } catch (error) {
+  //       console.error("Failed to end session:", error);
+  //     }
+  //   };
 
-    startSession();
+  //   startSession();
 
-    // End session handlers
-    window.addEventListener("beforeunload", endSession);
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden) endSession();
-    });
+  //   // End session handlers
+  //   window.addEventListener("beforeunload", endSession);
+  //   document.addEventListener("visibilitychange", () => {
+  //     if (document.hidden) endSession();
+  //   });
 
-    return () => {
-      window.removeEventListener("beforeunload", endSession);
-      document.removeEventListener("visibilitychange", endSession);
-      endSession();
-    };
-  }, [session?.user?.id, supabase]);
+  //   return () => {
+  //     window.removeEventListener("beforeunload", endSession);
+  //     document.removeEventListener("visibilitychange", endSession);
+  //     endSession();
+  //   };
+  // }, [session?.user?.id, supabase]);
 
   // ---------------------------
   // 4. REACT QUERY for Searching
