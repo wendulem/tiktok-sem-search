@@ -39,7 +39,9 @@ export default function VideoSearch() {
     string | null
   >(null);
 
-
+  // ---------------------------
+  // 2. EXISTING STATE
+  // ---------------------------
   const [prompt, setPrompt] = useState("");
   // The 3-slot layout: left, center, right
   // Middle slot is active by default
@@ -58,6 +60,9 @@ export default function VideoSearch() {
   // For MultiPlayer Fullscreen
   const multiPlayerRef = useRef<HTMLDivElement>(null);
 
+  // ---------------------------
+  // 3. START/END SESSION
+  // ---------------------------
   // Initialize page session on component mount
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -105,6 +110,9 @@ export default function VideoSearch() {
     };
   }, [session?.user?.id, supabase]);
 
+  // ---------------------------
+  // 4. REACT QUERY for Searching
+  // ---------------------------
   // React Query for searching
   const { data, error, isLoading, refetch } = useQuery<SearchResponse>({
     queryKey: ["videoSearch", prompt],
@@ -147,21 +155,25 @@ export default function VideoSearch() {
     refetch();
   }
 
-  function toggleBookmark(videoId: string) {
-    setBookmarkedVideos((prev) => {
-      const newBookmarks = new Set(prev);
-      if (newBookmarks.has(videoId)) {
-        newBookmarks.delete(videoId);
-      } else {
-        newBookmarks.add(videoId);
-      }
-      return newBookmarks;
-    });
-  }
-
+  // ---------------------------
+  // 5. VIDEO NAVIGATION EVENTS
+  // ---------------------------
   /** Handle going to the next video for a specific slot */
-  function handleNext(slotIndex: number) {
+  async function handleNext(slotIndex: number) {
     if (!data?.matches) return;
+
+    const currentVideoId = data.matches[slots[slotIndex].videoIndex].id;
+
+    if (pageSessionId) {
+      await supabase.from("video_interactions").insert([
+        {
+          session_id: pageSessionId,
+          video_id: currentVideoId,
+          event_type: "NEXT",
+        },
+      ]);
+    }
+
     setSlots((prevSlots) => {
       return prevSlots.map((slot, index) => {
         if (index === slotIndex) {
@@ -175,9 +187,38 @@ export default function VideoSearch() {
     });
   }
 
-  /** Handle going to the previous video for a specific slot */
-  function handlePrevious(slotIndex: number) {
+  function handleAutoAdvanceNext(slotIndex: number) {
     if (!data?.matches) return;
+    
+    setSlots((prevSlots) => {
+      return prevSlots.map((slot, index) => {
+        if (index === slotIndex) {
+          return {
+            ...slot,
+            videoIndex: (slot.videoIndex + 1) % data.matches.length,
+          };
+        }
+        return slot;
+      });
+    });
+  }
+
+  /** Handle going to the previous video for a specific slot */
+  async function handlePrevious(slotIndex: number) {
+    if (!data?.matches) return;
+
+    const currentVideoId = data.matches[slots[slotIndex].videoIndex].id;
+    
+    // Log to video_interactions
+    if (pageSessionId) {
+      await supabase.from("video_interactions").insert([
+        {
+          session_id: pageSessionId,
+          video_id: currentVideoId,
+          event_type: "PREV",
+        },
+      ]);
+    }
     setSlots((prevSlots) => {
       return prevSlots.map((slot, index) => {
         if (index === slotIndex) {
@@ -194,6 +235,121 @@ export default function VideoSearch() {
     });
   }
 
+  // ---------------------------
+  // 6. AUTO-ADVANCE TOGGLE
+  // ---------------------------
+  async function toggleAutoAdvanceCheckbox(checked: boolean) {
+    if (!data?.matches) return;
+
+    const currentVideoId = data.matches[slots[1].videoIndex].id;
+
+    if (checked) {
+      // AUTO_ADVANCE_START
+      setAutoAdvanceStartTime(Date.now());
+      if (pageSessionId) {
+        await supabase.from("video_interactions").insert([
+          {
+            session_id: pageSessionId,
+            video_id: currentVideoId,
+            event_type: "AUTO_ADVANCE_START",
+          },
+        ]);
+      }
+    } else {
+      const elapsed = Math.floor((Date.now() - autoAdvanceStartTime) / 1000);
+      if (pageSessionId) {
+        await supabase.from("video_interactions").insert([
+          {
+            session_id: pageSessionId,
+            video_id: currentVideoId,
+            event_type: "AUTO_ADVANCE_STOP",
+            auto_advance_duration: elapsed,
+          },
+        ]);
+      }
+    }
+    setAutoAdvance(checked);
+  }
+
+  // ---------------------------
+  // 7. AUTO-ADVANCE INTERVAL (Debounced)
+  // ---------------------------
+  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+
+  function handleIntervalChange(value: number) {
+    setAutoAdvanceSeconds(value);
+    if (debounceTimer) clearTimeout(debounceTimer);
+
+    // Wait 2s (or 30s) before logging interval to the DB
+    const newTimer = setTimeout(async () => {
+      if (!pageSessionId) return;
+      await supabase.from("auto_advance_intervals").insert([
+        {
+          session_id: pageSessionId,
+          interval_set: value,
+        },
+      ]);
+    }, 2000); // shorter for demo, use 30000 in production
+
+    setDebounceTimer(newTimer);
+  }
+
+  /** Auto-advance effect */
+  useEffect(() => {
+    if (!autoAdvance || !data?.matches?.length) return;
+
+    const timer = setTimeout(() => {
+      slots.forEach((slot, index) => {
+        if (slot.isActive) {
+          handleAutoAdvanceNext(index);
+        }
+      });
+    }, autoAdvanceSeconds * 1000);
+
+    return () => clearTimeout(timer);
+  }, [autoAdvance, autoAdvanceSeconds, slots, data?.matches]);
+
+  // ---------------------------
+  // 8. FULLSCREEN (Compilation Mode)
+  // ---------------------------
+  /** Go fullscreen on the 3-slot container */
+  const handleFullScreen = async () => {
+    if (multiPlayerRef.current) {
+      if (!isFullscreen) {
+        // ENTER compilation mode
+        if (multiPlayerRef.current.requestFullscreen) {
+          multiPlayerRef.current.requestFullscreen();
+        } else if ((multiPlayerRef.current as any).webkitRequestFullscreen) {
+          (multiPlayerRef.current as any).webkitRequestFullscreen();
+        }
+        if (pageSessionId) {
+          // Insert a row in compilation_mode_sessions
+          const { data, error } = await supabase.from("compilation_mode_sessions").insert([
+            { session_id: pageSessionId, entered_at: new Date().toISOString() }
+          ]).select(); // select() to return the inserted row
+  
+          // Save the ID for exiting
+          if (data && data.length > 0) {
+            setCompilationModeSessionId(data[0].id);
+          }
+        }
+      } else {
+        // EXIT compilation mode
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+        if (compilationModeSessionId) {
+          await supabase
+            .from("compilation_mode_sessions")
+            .update({ exited_at: new Date().toISOString() })
+            .eq("id", compilationModeSessionId);
+          setCompilationModeSessionId(null);
+        }
+      }  
+      setIsFullscreen(!isFullscreen);
+    }
+  }
+
   useEffect(() => {
     function handleFullscreenChange() {
       setIsFullscreen(!!document.fullscreenElement);
@@ -204,40 +360,24 @@ export default function VideoSearch() {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
-  /** Auto-advance effect */
-  useEffect(() => {
-    if (!autoAdvance || !data?.matches?.length) return;
-
-    const timer = setTimeout(() => {
-      slots.forEach((slot, index) => {
-        if (slot.isActive) {
-          handleNext(index);
-        }
-      });
-    }, autoAdvanceSeconds * 1000);
-
-    return () => clearTimeout(timer);
-  }, [autoAdvance, autoAdvanceSeconds, slots, data?.matches]);
-
-  /** Go fullscreen on the 3-slot container */
-  function handleFullScreen() {
-    if (multiPlayerRef.current) {
-      if (!isFullscreen) {
-        if (multiPlayerRef.current.requestFullscreen) {
-          multiPlayerRef.current.requestFullscreen();
-        } else if ((multiPlayerRef.current as any).webkitRequestFullscreen) {
-          (multiPlayerRef.current as any).webkitRequestFullscreen();
-        }
-        setIsFullscreen(true);
+  // ---------------------------
+  // 9. Bookmarking (no table schema given, but sample usage)
+  // ---------------------------
+  function toggleBookmark(videoId: string) {
+    setBookmarkedVideos((prev) => {
+      const newBookmarks = new Set(prev);
+      if (newBookmarks.has(videoId)) {
+        newBookmarks.delete(videoId);
       } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        }
-        setIsFullscreen(false);
+        newBookmarks.add(videoId);
       }
-    }
+      return newBookmarks;
+    });
   }
 
+  // ---------------------------
+  // 10. ADDITIONAL UI LOGIC (unchanged)
+  // ---------------------------
   /** Add left slot (if inactive) */
   function handleAddLeft() {
     setSlots((prev) => {
@@ -268,6 +408,10 @@ export default function VideoSearch() {
     });
   }
 
+
+  // ---------------------------
+  // 11. RENDER
+  // ---------------------------
   return (
     <div className="w-full max-w-4xl mx-auto p-4 space-y-6">
       {/* FORM */}
@@ -297,7 +441,7 @@ export default function VideoSearch() {
         <input
           type="checkbox"
           checked={autoAdvance}
-          onChange={(e) => setAutoAdvance(e.target.checked)}
+          onChange={(e) => toggleAutoAdvanceCheckbox(e.target.checked)}
         />
         {autoAdvance && (
           <>
@@ -305,7 +449,7 @@ export default function VideoSearch() {
             <input
               type="number"
               value={autoAdvanceSeconds}
-              onChange={(e) => setAutoAdvanceSeconds(Number(e.target.value))}
+              onChange={(e) => handleIntervalChange(Number(e.target.value))}
               className="w-20 border border-gray-300 rounded px-2 py-1"
               min="1"
             />
