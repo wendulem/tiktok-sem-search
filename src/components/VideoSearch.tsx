@@ -7,6 +7,7 @@ import { VideoSlot } from "./VideoSlot";
 import { VideoControls } from "./VideoControls";
 import { useSessionTracking } from "../hooks/useSessionTracking";
 import { useAutoAdvance } from "../hooks/useAutoAdvance";
+import { useFullscreenMode } from "../hooks/useFullScreenMode";
 
 interface SearchResult {
   id: string;
@@ -47,9 +48,9 @@ export default function VideoSearch() {
   } = useAutoAdvance(pageSessionId, supabase);
 
   // For compilation-mode tracking
-  const [compilationModeSessionId, setCompilationModeSessionId] = useState<
-    string | null
-  >(null);
+  // const [compilationModeSessionId, setCompilationModeSessionId] = useState<
+  //   string | null
+  // >(null);
 
   // ---------------------------
   // 2. EXISTING STATE
@@ -68,9 +69,14 @@ export default function VideoSearch() {
   // Automatic skip toggles
   // const [autoAdvance, setAutoAdvance] = useState(false);
   // const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState(5);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // const [isFullscreen, setIsFullscreen] = useState(false);
   // For MultiPlayer Fullscreen
   const multiPlayerRef = useRef<HTMLDivElement>(null);
+
+  const { isFullscreen, handleFullScreen } = useFullscreenMode({
+    pageSessionId,
+    containerRef: multiPlayerRef
+  });
 
   // ---------------------------
   // 3. START/END SESSION
@@ -339,58 +345,58 @@ export default function VideoSearch() {
   // 8. FULLSCREEN (Compilation Mode)
   // ---------------------------
   /** Go fullscreen on the 3-slot container */
-  const handleFullScreen = async () => {
-    if (multiPlayerRef.current) {
-      if (!isFullscreen) {
-        // ENTER compilation mode
-        if (multiPlayerRef.current.requestFullscreen) {
-          multiPlayerRef.current.requestFullscreen();
-        } else if ((multiPlayerRef.current as any).webkitRequestFullscreen) {
-          (multiPlayerRef.current as any).webkitRequestFullscreen();
-        }
-        if (pageSessionId) {
-          // Insert a row in compilation_mode_sessions
-          const { data, error } = await supabase
-            .from("compilation_mode_sessions")
-            .insert([
-              {
-                session_id: pageSessionId,
-                entered_at: new Date().toISOString(),
-              },
-            ])
-            .select(); // select() to return the inserted row
+  // const handleFullScreen = async () => {
+  //   if (multiPlayerRef.current) {
+  //     if (!isFullscreen) {
+  //       // ENTER compilation mode
+  //       if (multiPlayerRef.current.requestFullscreen) {
+  //         multiPlayerRef.current.requestFullscreen();
+  //       } else if ((multiPlayerRef.current as any).webkitRequestFullscreen) {
+  //         (multiPlayerRef.current as any).webkitRequestFullscreen();
+  //       }
+  //       if (pageSessionId) {
+  //         // Insert a row in compilation_mode_sessions
+  //         const { data, error } = await supabase
+  //           .from("compilation_mode_sessions")
+  //           .insert([
+  //             {
+  //               session_id: pageSessionId,
+  //               entered_at: new Date().toISOString(),
+  //             },
+  //           ])
+  //           .select(); // select() to return the inserted row
 
-          // Save the ID for exiting
-          if (data && data.length > 0) {
-            setCompilationModeSessionId(data[0].id);
-          }
-        }
-      } else {
-        // EXIT compilation mode
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        }
-        if (compilationModeSessionId) {
-          await supabase
-            .from("compilation_mode_sessions")
-            .update({ exited_at: new Date().toISOString() })
-            .eq("id", compilationModeSessionId);
-          setCompilationModeSessionId(null);
-        }
-      }
-      setIsFullscreen(!isFullscreen);
-    }
-  };
+  //         // Save the ID for exiting
+  //         if (data && data.length > 0) {
+  //           setCompilationModeSessionId(data[0].id);
+  //         }
+  //       }
+  //     } else {
+  //       // EXIT compilation mode
+  //       if (document.exitFullscreen) {
+  //         await document.exitFullscreen();
+  //       }
+  //       if (compilationModeSessionId) {
+  //         await supabase
+  //           .from("compilation_mode_sessions")
+  //           .update({ exited_at: new Date().toISOString() })
+  //           .eq("id", compilationModeSessionId);
+  //         setCompilationModeSessionId(null);
+  //       }
+  //     }
+  //     setIsFullscreen(!isFullscreen);
+  //   }
+  // };
 
-  useEffect(() => {
-    function handleFullscreenChange() {
-      setIsFullscreen(!!document.fullscreenElement);
-    }
+  // useEffect(() => {
+  //   function handleFullscreenChange() {
+  //     setIsFullscreen(!!document.fullscreenElement);
+  //   }
 
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () =>
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-  }, []);
+  //   document.addEventListener("fullscreenchange", handleFullscreenChange);
+  //   return () =>
+  //     document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  // }, []);
 
   // ---------------------------
   // 9. Bookmarking (no table schema given, but sample usage)
