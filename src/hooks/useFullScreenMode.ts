@@ -1,24 +1,29 @@
 import { useState, useEffect, RefObject } from 'react';
 import { useSupabaseClient } from "@supabase/auth-helpers-react";
+import { ComponentProps, UseFullscreenModeReturn } from '@/types';
 
-interface UseFullscreenModeProps {
-  pageSessionId: string | null;
-  containerRef: RefObject<HTMLDivElement | null>;  // Make containerRef nullable
-}
-
-interface UseFullscreenModeReturn {
-  isFullscreen: boolean;
-  handleFullScreen: () => Promise<void>;
-}
-
+/**
+ * useFullscreenMode Hook
+ * 
+ * Manages fullscreen functionality for video compilation mode including:
+ * - Toggle fullscreen state
+ * - Handle browser compatibility
+ * - Track analytics for compilation mode sessions
+ * 
+ * @param pageSessionId - Unique identifier for the current session
+ * @param containerRef - Reference to container element for fullscreen
+ * @returns UseFullscreenModeReturn object with state and handler
+ */
 export function useFullscreenMode({ 
   pageSessionId, 
   containerRef 
-}: UseFullscreenModeProps): UseFullscreenModeReturn {
+}: Pick<ComponentProps, 'pageSessionId' | 'containerRef'>): UseFullscreenModeReturn {
   const supabase = useSupabaseClient();
+  // Track fullscreen state and compilation session
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [compilationModeSessionId, setCompilationModeSessionId] = useState<string | null>(null);
 
+  // Set up fullscreen change event listener
   useEffect(() => {
     function handleFullscreenChange() {
       setIsFullscreen(!!document.fullscreenElement);
@@ -28,19 +33,23 @@ export function useFullscreenMode({
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
+  /**
+   * Handles entering/exiting fullscreen mode and tracks analytics
+   * Supports multiple browser implementations for fullscreen API
+   */
   const handleFullScreen = async () => {
     if (!containerRef.current) return;
 
     if (!isFullscreen) {
-      // ENTER compilation mode
+      // Enter fullscreen (compilation mode) with browser compatibility
       if (containerRef.current.requestFullscreen) {
         await containerRef.current.requestFullscreen();
       } else if ((containerRef.current as any).webkitRequestFullscreen) {
         await (containerRef.current as any).webkitRequestFullscreen();
       }
 
+      // Track compilation mode session start
       if (pageSessionId) {
-        // Insert a row in compilation_mode_sessions
         const { data, error } = await supabase
           .from("compilation_mode_sessions")
           .insert([{
@@ -55,7 +64,7 @@ export function useFullscreenMode({
         }
       }
     } else {
-      // EXIT compilation mode
+      // Exit fullscreen and update session tracking
       if (document.exitFullscreen) {
         await document.exitFullscreen();
       }

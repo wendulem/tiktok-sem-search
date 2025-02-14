@@ -1,24 +1,31 @@
 import { useState } from "react";
 import { useSupabaseClient } from "@supabase/auth-helpers-react";
+import { ComponentProps, Slot } from '@/types';
 
-interface Slot {
-  isActive: boolean;
-  videoIndex: number;
-}
-
-interface UseVideoNavigationProps {
-  pageSessionId: string | null;
-  initialSlots: Slot[];
-  videoCount: number; // Added videoCount to handle dynamic length
-}
-
-export function useVideoNavigation({ pageSessionId, initialSlots, videoCount }: UseVideoNavigationProps) {
+/**
+ * useVideoNavigation Hook
+ * 
+ * Manages video slot navigation and interaction tracking:
+ * - Handles next/previous video transitions
+ * - Tracks user navigation events
+ * - Maintains slot state across the interface
+ * 
+ * @param pageSessionId - Current session identifier
+ * @param initialSlots - Initial configuration of video slots
+ * @param videoCount - Total number of available videos
+ */
+export function useVideoNavigation({ pageSessionId, initialSlots, videoCount }: Pick<ComponentProps, 'pageSessionId' | 'initialSlots' | 'videoCount'>) {
   const supabase = useSupabaseClient();
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
 
-  // Handle going to the next video for a specific slot
+  /**
+   * Advances to next video in specified slot and logs interaction
+   * @param slotIndex - Target slot position
+   */
   async function handleNext(slotIndex: number) {
     const currentVideoId = slots[slotIndex].videoIndex;
+
+    // Track navigation event
     if (pageSessionId) {
       await supabase.from("video_interactions").insert([
         {
@@ -29,6 +36,7 @@ export function useVideoNavigation({ pageSessionId, initialSlots, videoCount }: 
       ]);
     }
 
+    // Update slot state with circular navigation
     setSlots((prevSlots) =>
       prevSlots.map((slot, index) =>
         index === slotIndex
@@ -38,9 +46,14 @@ export function useVideoNavigation({ pageSessionId, initialSlots, videoCount }: 
     );
   }
 
-  // Handle going to the previous video for a specific slot
+  /**
+   * Returns to previous video in specified slot and logs interaction
+   * @param slotIndex - Target slot position
+   */
   async function handlePrevious(slotIndex: number) {
     const currentVideoId = slots[slotIndex].videoIndex;
+
+    // Track navigation event
     if (pageSessionId) {
       await supabase.from("video_interactions").insert([
         {
@@ -51,6 +64,7 @@ export function useVideoNavigation({ pageSessionId, initialSlots, videoCount }: 
       ]);
     }
 
+    // Update slot state with circular navigation
     setSlots((prevSlots) =>
       prevSlots.map((slot, index) =>
         index === slotIndex

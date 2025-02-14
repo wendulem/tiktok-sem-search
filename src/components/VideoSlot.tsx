@@ -1,25 +1,18 @@
 import React from 'react';
+import { VideoSlotProps } from '@/types';
 
-interface Video {
-  id: string;
-  presigned_url: string;
-  similarity: number;
-}
-
-interface VideoSlotProps {
-  isActive: boolean;
-  video?: Video;
-  videoIndex: number;
-  totalVideos: number;
-  slotIndex: number;
-  isFullscreen: boolean;
-  isBookmarked: boolean;
-  onNext: () => void;
-  onPrevious: () => void;
-  onRemove: () => void;
-  onBookmark: (videoId: string) => void;
-}
-
+/**
+ * VideoSlot Component
+ * 
+ * Renders an individual video player slot with controls:
+ * - Video playback with standard controls
+ * - Navigation between videos
+ * - Bookmark functionality
+ * - Slot removal option
+ * - Responsive fullscreen support
+ * 
+ * @param props VideoSlotProps containing slot configuration and handlers
+ */
 export function VideoSlot({
   isActive,
   video,
@@ -33,8 +26,10 @@ export function VideoSlot({
   onRemove,
   onBookmark
 }: VideoSlotProps) {
+  // Return null for inactive slots
   if (!isActive) return null;
 
+  // Display placeholder for no video state
   if (!video) {
     return (
       <div className="flex-1">
@@ -45,13 +40,16 @@ export function VideoSlot({
     );
   }
 
+  // Determine slot position for labels
   const slotPosition = slotIndex === 0 ? "Left" : slotIndex === 1 ? "Center" : "Right";
 
   return (
     <div className="flex-1 space-y-2">
+      {/* Video container with responsive height */}
       <div className={`relative group ${
         isFullscreen ? "h-screen" : "h-96"
       } w-full flex justify-center items-center`}>
+        {/* Video player */}
         <video
           src={video.presigned_url}
           className="w-full h-full object-contain"
@@ -62,6 +60,7 @@ export function VideoSlot({
           muted
         />
         
+        {/* Bookmark toggle button */}
         <button
           className="absolute top-2 right-2 bg-white rounded-full p-1 cursor-pointer shadow-md transition-opacity opacity-0 group-hover:opacity-100"
           onClick={() => onBookmark(video.id)}
@@ -94,6 +93,7 @@ export function VideoSlot({
         </button>
       </div>
 
+      {/* Navigation controls and video info */}
       <div className="flex items-center justify-between">
         <button
           onClick={onPrevious}
@@ -116,6 +116,7 @@ export function VideoSlot({
         </button>
       </div>
 
+      {/* Remove slot button (except for center slot) */}
       {slotIndex !== 1 && (
         <button
           onClick={onRemove}
