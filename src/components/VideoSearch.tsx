@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 import { VideoSlot } from "./VideoSlot";
 import { VideoControls } from "./VideoControls";
 import { useSessionTracking } from "../hooks/useSessionTracking";
+import { useAutoAdvance } from "../hooks/useAutoAdvance";
 
 interface SearchResult {
   id: string;
@@ -36,7 +37,14 @@ export default function VideoSearch() {
   const { pageSessionId } = useSessionTracking(supabase, session?.user?.id);
 
   // For auto-advance tracking
-  const [autoAdvanceStartTime, setAutoAdvanceStartTime] = useState<number>(0);
+  // const [autoAdvanceStartTime, setAutoAdvanceStartTime] = useState<number>(0);
+  const {
+    autoAdvance,
+    autoAdvanceSeconds,
+    toggleAutoAdvanceCheckbox,
+    handleIntervalChange,
+    handleAutoAdvanceNext,
+  } = useAutoAdvance(pageSessionId, supabase);
 
   // For compilation-mode tracking
   const [compilationModeSessionId, setCompilationModeSessionId] = useState<
@@ -58,8 +66,8 @@ export default function VideoSearch() {
     new Set()
   );
   // Automatic skip toggles
-  const [autoAdvance, setAutoAdvance] = useState(false);
-  const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState(5);
+  // const [autoAdvance, setAutoAdvance] = useState(false);
+  // const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState(5);
   const [isFullscreen, setIsFullscreen] = useState(false);
   // For MultiPlayer Fullscreen
   const multiPlayerRef = useRef<HTMLDivElement>(null);
@@ -191,21 +199,21 @@ export default function VideoSearch() {
     });
   }
 
-  function handleAutoAdvanceNext(slotIndex: number) {
-    if (!data?.matches) return;
+  // function handleAutoAdvanceNext(slotIndex: number) {
+  //   if (!data?.matches) return;
 
-    setSlots((prevSlots) => {
-      return prevSlots.map((slot, index) => {
-        if (index === slotIndex) {
-          return {
-            ...slot,
-            videoIndex: (slot.videoIndex + 1) % data.matches.length,
-          };
-        }
-        return slot;
-      });
-    });
-  }
+  //   setSlots((prevSlots) => {
+  //     return prevSlots.map((slot, index) => {
+  //       if (index === slotIndex) {
+  //         return {
+  //           ...slot,
+  //           videoIndex: (slot.videoIndex + 1) % data.matches.length,
+  //         };
+  //       }
+  //       return slot;
+  //     });
+  //   });
+  // }
 
   /** Handle going to the previous video for a specific slot */
   async function handlePrevious(slotIndex: number) {
@@ -242,76 +250,88 @@ export default function VideoSearch() {
   // ---------------------------
   // 6. AUTO-ADVANCE TOGGLE
   // ---------------------------
-  async function toggleAutoAdvanceCheckbox(checked: boolean) {
-    if (!data?.matches) return;
+  // async function toggleAutoAdvanceCheckbox(checked: boolean) {
+  //   if (!data?.matches) return;
 
-    const currentVideoId = data.matches[slots[1].videoIndex].id;
+  //   const currentVideoId = data.matches[slots[1].videoIndex].id;
 
-    if (checked) {
-      // AUTO_ADVANCE_START
-      setAutoAdvanceStartTime(Date.now());
-      if (pageSessionId) {
-        await supabase.from("video_interactions").insert([
-          {
-            session_id: pageSessionId,
-            video_id: currentVideoId,
-            event_type: "AUTO_ADVANCE_START",
-          },
-        ]);
-      }
-    } else {
-      const elapsed = Math.floor((Date.now() - autoAdvanceStartTime) / 1000);
-      if (pageSessionId) {
-        await supabase.from("video_interactions").insert([
-          {
-            session_id: pageSessionId,
-            video_id: currentVideoId,
-            event_type: "AUTO_ADVANCE_STOP",
-            auto_advance_duration: elapsed,
-          },
-        ]);
-      }
-    }
-    setAutoAdvance(checked);
-  }
+  //   if (checked) {
+  //     // AUTO_ADVANCE_START
+  //     setAutoAdvanceStartTime(Date.now());
+  //     if (pageSessionId) {
+  //       await supabase.from("video_interactions").insert([
+  //         {
+  //           session_id: pageSessionId,
+  //           video_id: currentVideoId,
+  //           event_type: "AUTO_ADVANCE_START",
+  //         },
+  //       ]);
+  //     }
+  //   } else {
+  //     const elapsed = Math.floor((Date.now() - autoAdvanceStartTime) / 1000);
+  //     if (pageSessionId) {
+  //       await supabase.from("video_interactions").insert([
+  //         {
+  //           session_id: pageSessionId,
+  //           video_id: currentVideoId,
+  //           event_type: "AUTO_ADVANCE_STOP",
+  //           auto_advance_duration: elapsed,
+  //         },
+  //       ]);
+  //     }
+  //   }
+  //   setAutoAdvance(checked);
+  // }
 
   // ---------------------------
   // 7. AUTO-ADVANCE INTERVAL (Debounced)
   // ---------------------------
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(
-    null
-  );
+  // const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(
+  //   null
+  // );
 
-  function handleIntervalChange(value: number) {
-    setAutoAdvanceSeconds(value);
-    if (debounceTimer) clearTimeout(debounceTimer);
+  // function handleIntervalChange(value: number) {
+  //   setAutoAdvanceSeconds(value);
+  //   if (debounceTimer) clearTimeout(debounceTimer);
 
-    // Wait 2s (or 30s) before logging interval to the DB
-    const newTimer = setTimeout(async () => {
-      if (!pageSessionId) return;
-      await supabase.from("auto_advance_intervals").insert([
-        {
-          session_id: pageSessionId,
-          interval_set: value,
-        },
-      ]);
-    }, 2000); // shorter for demo, use 30000 in production
+  //   // Wait 2s (or 30s) before logging interval to the DB
+  //   const newTimer = setTimeout(async () => {
+  //     if (!pageSessionId) return;
+  //     await supabase.from("auto_advance_intervals").insert([
+  //       {
+  //         session_id: pageSessionId,
+  //         interval_set: value,
+  //       },
+  //     ]);
+  //   }, 2000); // shorter for demo, use 30000 in production
 
-    setDebounceTimer(newTimer);
-  }
+  //   setDebounceTimer(newTimer);
+  // }
 
   /** Auto-advance effect */
+  // useEffect(() => {
+  //   if (!autoAdvance || !data?.matches?.length) return;
+
+  //   const timer = setTimeout(() => {
+  //     slots.forEach((slot, index) => {
+  //       if (slot.isActive) {
+  //         handleAutoAdvanceNext(index);
+  //       }
+  //     });
+  //   }, autoAdvanceSeconds * 1000);
+
+  //   return () => clearTimeout(timer);
+  // }, [autoAdvance, autoAdvanceSeconds, slots, data?.matches]);
+
   useEffect(() => {
     if (!autoAdvance || !data?.matches?.length) return;
-
     const timer = setTimeout(() => {
       slots.forEach((slot, index) => {
         if (slot.isActive) {
-          handleAutoAdvanceNext(index);
+          handleAutoAdvanceNext(index, slots, setSlots, data.matches.length);
         }
       });
     }, autoAdvanceSeconds * 1000);
-
     return () => clearTimeout(timer);
   }, [autoAdvance, autoAdvanceSeconds, slots, data?.matches]);
 
@@ -453,7 +473,7 @@ export default function VideoSearch() {
           <input
             type="checkbox"
             checked={autoAdvance}
-            onChange={(e) => toggleAutoAdvanceCheckbox(e.target.checked)}
+            onChange={(e) => toggleAutoAdvanceCheckbox(e.target.checked, data?.matches[slots[1].videoIndex].id)}
           />
           {autoAdvance && (
             <>
