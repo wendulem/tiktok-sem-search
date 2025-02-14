@@ -14,7 +14,7 @@ import { ComponentProps, Slot } from '@/types';
  * @param initialSlots - Initial configuration of video slots
  * @param videoCount - Total number of available videos
  */
-export function useVideoNavigation({ pageSessionId, initialSlots, videoCount }: Pick<ComponentProps, 'pageSessionId' | 'initialSlots' | 'videoCount'>) {
+export function useVideoNavigation({ pageSessionId, initialSlots = [], videoCount = 0 }: Pick<ComponentProps, 'pageSessionId' | 'initialSlots' | 'videoCount'>) {
   const supabase = useSupabaseClient();
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
 

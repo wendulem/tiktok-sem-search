@@ -38,7 +38,7 @@ export function useFullscreenMode({
    * Supports multiple browser implementations for fullscreen API
    */
   const handleFullScreen = async () => {
-    if (!containerRef.current) return;
+    if (!containerRef?.current) return;
 
     if (!isFullscreen) {
       // Enter fullscreen (compilation mode) with browser compatibility

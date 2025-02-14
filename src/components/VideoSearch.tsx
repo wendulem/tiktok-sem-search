@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, RefObject } from "react";
 // import { useSession } from "@supabase/auth-helpers-react";
 import { useQuery } from "@tanstack/react-query";
 import { useSupabaseClient } from "@supabase/auth-helpers-react";
 import { v4 as uuidv4 } from "uuid";
-import { SearchResponse } from '@/types';
+import { Slot, SearchResponse } from "@/types";
 
 // Component imports
 import { VideoSlot } from "@/components/VideoSlot";
@@ -17,7 +17,7 @@ import { useVideoNavigation } from "@/hooks/useVideoNavigation";
 
 /**
  * VideoSearch Component
- * 
+ *
  * A video search interface that allows users to:
  * - Search for videos using text prompts
  * - View videos in a 1-3 slot layout
@@ -65,21 +65,20 @@ export default function VideoSearch() {
         },
         body: JSON.stringify({
           prompt,
-          similarity_threshold: 0.10,
+          similarity_threshold: 0.1,
           match_count: 20,
           page_session_id: pageSessionId,
-          demo_user_id: demoUserId // comment out after demo
+          demo_user_id: demoUserId, // comment out after demo
         }),
       });
 
-      const jsonData = await response.json();  // Parse JSON once
-      console.log("RESPONSE:", jsonData);      // Log the parsed data
-      return jsonData;                         // Return the parsed data
+      const jsonData = await response.json(); // Parse JSON once
+      console.log("RESPONSE:", jsonData); // Log the parsed data
+      return jsonData; // Return the parsed data
     },
     enabled: false, // Only execute query on form submission
   });
 
-  
   // Video slot management
   const { slots, setSlots, handleNext, handlePrevious } = useVideoNavigation({
     pageSessionId,
@@ -92,7 +91,9 @@ export default function VideoSearch() {
   });
 
   // Fullscreen functionality
-  const multiPlayerRef = useRef<HTMLDivElement>(null);
+  const multiPlayerRef = useRef<HTMLDivElement>(
+    null
+  ) as RefObject<HTMLDivElement>;
   const { isFullscreen, handleFullScreen } = useFullscreenMode({
     pageSessionId,
     containerRef: multiPlayerRef,
@@ -107,7 +108,7 @@ export default function VideoSearch() {
    */
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    setSlots((prevSlots) => {
+    setSlots((prevSlots: Slot[]) => {
       return prevSlots.map((slot, index) => ({
         ...slot,
         videoIndex: 0,
@@ -121,7 +122,7 @@ export default function VideoSearch() {
   useEffect(() => {
     if (!autoAdvance || !data?.matches?.length) return;
     const timer = setTimeout(() => {
-      slots.forEach((slot, index) => {
+      slots.forEach((slot: Slot, index: number) => {
         if (slot.isActive) {
           handleAutoAdvanceNext(index, slots, setSlots, data.matches.length);
         }
@@ -147,7 +148,7 @@ export default function VideoSearch() {
 
   /** Add left slot (if inactive) */
   function handleAddLeft() {
-    setSlots((prev) => {
+    setSlots((prev: Slot[]) => {
       const newSlots = [...prev];
       newSlots[0].isActive = true; // left slot
       return newSlots;
@@ -156,7 +157,7 @@ export default function VideoSearch() {
 
   /** Add right slot (if inactive) */
   function handleAddRight() {
-    setSlots((prev) => {
+    setSlots((prev: Slot[]) => {
       const newSlots = [...prev];
       newSlots[2].isActive = true; // right slot
       return newSlots;
@@ -166,7 +167,7 @@ export default function VideoSearch() {
   /** Remove a slot (but never remove the middle slot index=1) */
   function handleRemoveSlot(slotIndex: number) {
     if (slotIndex === 1) return; // skip removing the middle slot
-    setSlots((prev) => {
+    setSlots((prev: Slot[]) => {
       const newSlots = [...prev];
       newSlots[slotIndex].isActive = false;
       // Optionally reset videoIndex for that slot
@@ -205,12 +206,12 @@ export default function VideoSearch() {
           <input
             type="checkbox"
             checked={autoAdvance}
-            onChange={(e) =>
-              toggleAutoAdvanceCheckbox(
-                e.target.checked,
-                data?.matches[slots[1].videoIndex].id
-              )
-            }
+            onChange={(e) => {
+              const currentVideoId = data?.matches[slots[1].videoIndex].id;
+              if (currentVideoId) {
+                toggleAutoAdvanceCheckbox(e.target.checked, currentVideoId);
+              }
+            }}
           />
           {autoAdvance && (
             <>
@@ -244,7 +245,7 @@ export default function VideoSearch() {
 
       {/* 3-slot layout */}
       <div className="flex gap-3" ref={multiPlayerRef}>
-        {slots.map((slot, index) => {
+        {slots.map((slot: Slot, index: number) => {
           const video = data?.matches?.[slot.videoIndex];
 
           return (
@@ -256,7 +257,7 @@ export default function VideoSearch() {
               totalVideos={data?.matches?.length ?? 0}
               slotIndex={index}
               isFullscreen={isFullscreen}
-              isBookmarked={bookmarkedVideos.has(video?.id)}
+              isBookmarked={video?.id ? bookmarkedVideos.has(video.id) : false}
               onNext={() => handleNext(index)}
               onPrevious={() => handlePrevious(index)}
               onRemove={() => handleRemoveSlot(index)}
