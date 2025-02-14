@@ -8,6 +8,7 @@ import { VideoControls } from "./VideoControls";
 import { useSessionTracking } from "../hooks/useSessionTracking";
 import { useAutoAdvance } from "../hooks/useAutoAdvance";
 import { useFullscreenMode } from "../hooks/useFullScreenMode";
+import { useVideoNavigation } from "../hooks/useVideoNavigation";
 
 interface SearchResult {
   id: string;
@@ -22,6 +23,7 @@ interface SearchResponse {
   threshold: number;
 }
 
+// !?! THIS CERTAINLY NEEDS TO BE A SHARED TYPE !?!
 interface Slot {
   isActive: boolean; // Whether this slot is visible
   videoIndex: number; // Which search-result index it's currently showing
@@ -56,16 +58,53 @@ export default function VideoSearch() {
   // 2. EXISTING STATE
   // ---------------------------
   const [prompt, setPrompt] = useState("");
-  // The 3-slot layout: left, center, right
-  // Middle slot is active by default
-  const [slots, setSlots] = useState<Slot[]>([
-    { isActive: false, videoIndex: 0 }, // Left slot !!! TODO: RANDOM INDICES
-    { isActive: true, videoIndex: 0 }, // Center slot
-    { isActive: false, videoIndex: 0 }, // Right slot
-  ]);
   const [bookmarkedVideos, setBookmarkedVideos] = useState<Set<string>>(
     new Set()
   );
+
+  // ---------------------------
+  // 4. REACT QUERY for Searching
+  // ---------------------------
+  // React Query for searching
+  const { data, error, isLoading, refetch } = useQuery<SearchResponse>({
+    queryKey: ["videoSearch", prompt],
+    queryFn: async () => {
+      if (!prompt || !session?.access_token || !session.user) return null;
+
+      const response = await fetch("/api/baseten", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          prompt,
+          similarity_threshold: 0.1,
+          match_count: 20,
+          page_session_id: pageSessionId,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Search failed");
+      return response.json();
+    },
+    enabled: false, // only run when form is submitted
+  });
+
+  
+  // The 3-slot layout: left, center, right
+  // Middle slot is active by default
+  // Use the video navigation hook
+  const { slots, setSlots, handleNext, handlePrevious } = useVideoNavigation({
+    pageSessionId,
+    initialSlots: [
+      { isActive: false, videoIndex: 0 }, // !!! TODO: RANDOM/INTERVAL PRESET INDICES
+      { isActive: true, videoIndex: 0 },
+      { isActive: false, videoIndex: 0 },
+    ],
+    videoCount: data?.matches?.length ?? 0, // Use the length of data.matches dynamically
+  });
+
   // Automatic skip toggles
   // const [autoAdvance, setAutoAdvance] = useState(false);
   // const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState(5);
@@ -75,7 +114,7 @@ export default function VideoSearch() {
 
   const { isFullscreen, handleFullScreen } = useFullscreenMode({
     pageSessionId,
-    containerRef: multiPlayerRef
+    containerRef: multiPlayerRef,
   });
 
   // ---------------------------
@@ -128,35 +167,6 @@ export default function VideoSearch() {
   //   };
   // }, [session?.user?.id, supabase]);
 
-  // ---------------------------
-  // 4. REACT QUERY for Searching
-  // ---------------------------
-  // React Query for searching
-  const { data, error, isLoading, refetch } = useQuery<SearchResponse>({
-    queryKey: ["videoSearch", prompt],
-    queryFn: async () => {
-      if (!prompt || !session?.access_token || !session.user) return null;
-
-      const response = await fetch("/api/baseten", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          prompt,
-          similarity_threshold: 0.1,
-          match_count: 20,
-          page_session_id: pageSessionId,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Search failed");
-      return response.json();
-    },
-    enabled: false, // only run when form is submitted
-  });
-
   /** Handle form submission */
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -177,33 +187,33 @@ export default function VideoSearch() {
   // 5. VIDEO NAVIGATION EVENTS
   // ---------------------------
   /** Handle going to the next video for a specific slot */
-  async function handleNext(slotIndex: number) {
-    if (!data?.matches) return;
+  // async function handleNext(slotIndex: number) {
+  //   if (!data?.matches) return;
 
-    const currentVideoId = data.matches[slots[slotIndex].videoIndex].id;
+  //   const currentVideoId = data.matches[slots[slotIndex].videoIndex].id;
 
-    if (pageSessionId) {
-      await supabase.from("video_interactions").insert([
-        {
-          session_id: pageSessionId,
-          video_id: currentVideoId,
-          event_type: "NEXT",
-        },
-      ]);
-    }
+  //   if (pageSessionId) {
+  //     await supabase.from("video_interactions").insert([
+  //       {
+  //         session_id: pageSessionId,
+  //         video_id: currentVideoId,
+  //         event_type: "NEXT",
+  //       },
+  //     ]);
+  //   }
 
-    setSlots((prevSlots) => {
-      return prevSlots.map((slot, index) => {
-        if (index === slotIndex) {
-          return {
-            ...slot,
-            videoIndex: (slot.videoIndex + 1) % data.matches.length, // Move to next video sequentially
-          };
-        }
-        return slot;
-      });
-    });
-  }
+  //   setSlots((prevSlots) => {
+  //     return prevSlots.map((slot, index) => {
+  //       if (index === slotIndex) {
+  //         return {
+  //           ...slot,
+  //           videoIndex: (slot.videoIndex + 1) % data.matches.length, // Move to next video sequentially
+  //         };
+  //       }
+  //       return slot;
+  //     });
+  //   });
+  // }
 
   // function handleAutoAdvanceNext(slotIndex: number) {
   //   if (!data?.matches) return;
@@ -222,36 +232,36 @@ export default function VideoSearch() {
   // }
 
   /** Handle going to the previous video for a specific slot */
-  async function handlePrevious(slotIndex: number) {
-    if (!data?.matches) return;
+  // async function handlePrevious(slotIndex: number) {
+  //   if (!data?.matches) return;
 
-    const currentVideoId = data.matches[slots[slotIndex].videoIndex].id;
+  //   const currentVideoId = data.matches[slots[slotIndex].videoIndex].id;
 
-    // Log to video_interactions
-    if (pageSessionId) {
-      await supabase.from("video_interactions").insert([
-        {
-          session_id: pageSessionId,
-          video_id: currentVideoId,
-          event_type: "PREV",
-        },
-      ]);
-    }
-    setSlots((prevSlots) => {
-      return prevSlots.map((slot, index) => {
-        if (index === slotIndex) {
-          return {
-            ...slot,
-            videoIndex:
-              slot.videoIndex === 0
-                ? data.matches.length - 1
-                : slot.videoIndex - 1, // Move to previous video sequentially
-          };
-        }
-        return slot;
-      });
-    });
-  }
+  //   // Log to video_interactions
+  //   if (pageSessionId) {
+  //     await supabase.from("video_interactions").insert([
+  //       {
+  //         session_id: pageSessionId,
+  //         video_id: currentVideoId,
+  //         event_type: "PREV",
+  //       },
+  //     ]);
+  //   }
+  //   setSlots((prevSlots) => {
+  //     return prevSlots.map((slot, index) => {
+  //       if (index === slotIndex) {
+  //         return {
+  //           ...slot,
+  //           videoIndex:
+  //             slot.videoIndex === 0
+  //               ? data.matches.length - 1
+  //               : slot.videoIndex - 1, // Move to previous video sequentially
+  //         };
+  //       }
+  //       return slot;
+  //     });
+  //   });
+  // }
 
   // ---------------------------
   // 6. AUTO-ADVANCE TOGGLE
@@ -479,7 +489,12 @@ export default function VideoSearch() {
           <input
             type="checkbox"
             checked={autoAdvance}
-            onChange={(e) => toggleAutoAdvanceCheckbox(e.target.checked, data?.matches[slots[1].videoIndex].id)}
+            onChange={(e) =>
+              toggleAutoAdvanceCheckbox(
+                e.target.checked,
+                data?.matches[slots[1].videoIndex].id
+              )
+            }
           />
           {autoAdvance && (
             <>
